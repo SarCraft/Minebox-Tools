@@ -1,19 +1,16 @@
+mod api;
+mod commands;
+mod util;
+
 use poise::serenity_prelude as serenity;
 
-/// Données partagées entre toutes les commandes.
-struct Data {}
-
-type Error = Box<dyn std::error::Error + Send + Sync>;
-type Context<'a> = poise::Context<'a, Data, Error>;
-
-/// Répond avec « Pong ! » et la latence du bot.
-#[poise::command(slash_command, prefix_command)]
-async fn ping(ctx: Context<'_>) -> Result<(), Error> {
-    let latency = ctx.ping().await;
-    ctx.say(format!("🏓 Pong ! Latence : {} ms", latency.as_millis()))
-        .await?;
-    Ok(())
+/// Données partagées entre toutes les commandes (ici, le client de l'API Minebox).
+pub struct Data {
+    pub api: api::MineboxClient,
 }
+
+pub type Error = Box<dyn std::error::Error + Send + Sync>;
+pub type Context<'a> = poise::Context<'a, Data, Error>;
 
 #[tokio::main]
 async fn main() {
@@ -24,19 +21,20 @@ async fn main() {
     let token = std::env::var("DISCORD_TOKEN")
         .expect("La variable d'environnement DISCORD_TOKEN doit être définie");
 
-    let intents = serenity::GatewayIntents::non_privileged()
-        | serenity::GatewayIntents::MESSAGE_CONTENT;
+    let intents = serenity::GatewayIntents::non_privileged();
 
     let framework = poise::Framework::builder()
         .options(poise::FrameworkOptions {
-            commands: vec![ping()],
+            commands: commands::all(),
             ..Default::default()
         })
         .setup(|ctx, ready, framework| {
             Box::pin(async move {
                 poise::builtins::register_globally(ctx, &framework.options().commands).await?;
                 tracing::info!("Connecté en tant que {}", ready.user.name);
-                Ok(Data {})
+                Ok(Data {
+                    api: api::MineboxClient::new(),
+                })
             })
         })
         .build();

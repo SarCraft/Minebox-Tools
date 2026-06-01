@@ -31,9 +31,29 @@ Au démarrage, les commandes slash sont enregistrées globalement (la propagatio
 
 ## Commandes
 
-| Commande | Description                         |
-| -------- | ----------------------------------- |
-| `/ping`  | Répond « Pong ! » avec la latence.  |
+Toutes les données proviennent de l'[API publique Minebox](https://api.minebox.co/docs).
+
+| Commande                     | Description                                                                 |
+| ---------------------------- | --------------------------------------------------------------------------- |
+| `/ping`                      | Répond « Pong ! » avec la latence.                                          |
+| `/bestiary <créature>`       | Cherche une créature (autocomplétion) et affiche ses infos et ses **loots avec images**. |
+| `/recipes <métier> [search]` | Liste les recettes de craft d'un métier ; détaille les ingrédients et l'item produit. |
+| `/market prices <item_id>`   | Statistiques de prix d'un item (achat / vente / direct).                    |
+| `/market bazaar <item_id>`   | Offres du bazar pour un item.                                               |
+| `/market auction`            | Annonces de l'hôtel des ventes.                                            |
+| `/player <pseudo>`           | Profil d'un joueur : niveau, temps de jeu, métiers, stats, compagnons.      |
+
+> Note : certaines routes du marché peuvent renvoyer un corps vide côté API
+> (marché inactif) ; le bot l'indique alors clairement.
+
+## Architecture
+
+| Fichier                 | Rôle                                                  |
+| ----------------------- | ----------------------------------------------------- |
+| `src/main.rs`           | Démarrage du bot et enregistrement des commandes.     |
+| `src/api.rs`            | Client HTTP typé de l'API Minebox.                    |
+| `src/util.rs`           | Helpers (couleurs de rareté, images base64, formats). |
+| `src/commands/`         | Une commande par fichier.                             |
 
 ## Licence
 

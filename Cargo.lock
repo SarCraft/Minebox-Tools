@@ -903,8 +903,13 @@ dependencies = [
 name = "minebox-bot"
 version = "0.1.0"
 dependencies = [
+ "base64",
+ "chrono",
  "dotenvy",
  "poise",
+ "reqwest",
+ "serde",
+ "serde_json",
  "serenity",
  "tokio",
  "tracing",

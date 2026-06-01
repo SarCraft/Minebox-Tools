@@ -1,0 +1,291 @@
+//! Client de l'API publique Minebox (https://api.minebox.co).
+
+use serde::Deserialize;
+
+const BASE_URL: &str = "https://api.minebox.co";
+
+/// Client HTTP réutilisable vers l'API Minebox.
+#[derive(Clone)]
+pub struct MineboxClient {
+    http: reqwest::Client,
+}
+
+impl MineboxClient {
+    pub fn new() -> Self {
+        let http = reqwest::Client::builder()
+            .user_agent("minebox-bot (Discord)")
+            .build()
+            .expect("client reqwest");
+        Self { http }
+    }
+
+    /// GET `path` (commençant par `/`) et désérialise le JSON en `T`.
+    async fn get<T: for<'de> Deserialize<'de>>(
+        &self,
+        path: &str,
+        query: &[(&str, String)],
+    ) -> Result<T, ApiError> {
+        let url = format!("{BASE_URL}{path}");
+        let resp = self.http.get(&url).query(query).send().await?;
+        let status = resp.status();
+        let bytes = resp.bytes().await?;
+        if !status.is_success() {
+            return Err(ApiError::Status(status.as_u16()));
+        }
+        if bytes.is_empty() {
+            return Err(ApiError::Empty);
+        }
+        serde_json::from_slice(&bytes).map_err(ApiError::Parse)
+    }
+
+    /// Liste du bestiaire (utilisé pour l'autocomplétion et la recherche).
+    pub async fn bestiary(
+        &self,
+        search: &str,
+        locale: &str,
+    ) -> Result<BestiaryList, ApiError> {
+        self.get(
+            "/bestiary",
+            &[
+                ("search", search.to_string()),
+                ("pageSize", "25".to_string()),
+                ("locale", locale.to_string()),
+            ],
+        )
+        .await
+    }
+
+    /// Détail d'une créature avec ses loots.
+    pub async fn creature(&self, id: &str, locale: &str) -> Result<Creature, ApiError> {
+        self.get(
+            &format!("/bestiary/{id}"),
+            &[("locale", locale.to_string())],
+        )
+        .await
+    }
+
+    /// Recettes de craft pour un métier donné.
+    pub async fn recipes(
+        &self,
+        job: &str,
+        search: &str,
+        locale: &str,
+    ) -> Result<RecipesResp, ApiError> {
+        self.get(
+            "/recipes",
+            &[
+                ("job", job.to_string()),
+                ("search", search.to_string()),
+                ("locale", locale.to_string()),
+            ],
+        )
+        .await
+    }
+
+    /// Détail d'un item (nom, image base64, rareté…).
+    pub async fn item(&self, id: &str, locale: &str) -> Result<Item, ApiError> {
+        self.get(&format!("/item/{id}"), &[("locale", locale.to_string())])
+            .await
+    }
+
+    /// Statistiques de prix marché d'un item.
+    pub async fn market_prices(
+        &self,
+        item_id: &str,
+        period: &str,
+    ) -> Result<serde_json::Value, ApiError> {
+        self.get(
+            "/market/prices",
+            &[
+                ("item_id", item_id.to_string()),
+                ("period", period.to_string()),
+            ],
+        )
+        .await
+    }
+
+    /// Annonces de l'hôtel des ventes (auction house).
+    pub async fn market_auction(&self, limit: u32) -> Result<serde_json::Value, ApiError> {
+        self.get("/market/auction", &[("limit", limit.to_string())])
+            .await
+    }
+
+    /// Offres du bazar pour un item.
+    pub async fn market_bazaar(
+        &self,
+        item_id: &str,
+        limit: u32,
+    ) -> Result<serde_json::Value, ApiError> {
+        self.get(
+            "/market/bazaar",
+            &[
+                ("item_id", item_id.to_string()),
+                ("limit", limit.to_string()),
+            ],
+        )
+        .await
+    }
+
+    /// Données complètes d'un joueur (pseudo ou UUID).
+    pub async fn player(&self, identifier: &str) -> Result<Player, ApiError> {
+        self.get(&format!("/data/{identifier}"), &[]).await
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Types de réponse
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Deserialize)]
+pub struct BestiaryList {
+    pub creatures: Vec<CreatureSummary>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CreatureSummary {
+    pub id: String,
+    pub name: String,
+    #[serde(default)]
+    pub family_name: Option<String>,
+    #[serde(default)]
+    pub level: i64,
+    #[serde(default)]
+    pub level_max: i64,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct Creature {
+    pub id: String,
+    pub name: String,
+    #[serde(default)]
+    pub family_name: Option<String>,
+    #[serde(default)]
+    pub level: i64,
+    #[serde(default)]
+    pub level_max: i64,
+    #[serde(default)]
+    pub health: Vec<i64>,
+    #[serde(default)]
+    pub image: Option<String>,
+    #[serde(default)]
+    pub zones: Option<Vec<String>>,
+    #[serde(default)]
+    pub drops: Vec<Drop>,
+    #[serde(default)]
+    pub stats: Option<std::collections::BTreeMap<String, Vec<i64>>>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct Drop {
+    pub item_id: String,
+    pub name: String,
+    /// Image PNG encodée en base64 (pas une URL).
+    #[serde(default)]
+    pub image: Option<String>,
+    #[serde(default)]
+    pub amount: Vec<i64>,
+    #[serde(default)]
+    pub chance: f64,
+    #[serde(default)]
+    pub item: Option<ItemBrief>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ItemBrief {
+    #[serde(default)]
+    pub rarity: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct RecipesResp {
+    pub recipes: Vec<Recipe>,
+    #[serde(default)]
+    pub total: i64,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct Recipe {
+    pub id: String,
+    pub name: String,
+    #[serde(default)]
+    pub job: Option<String>,
+    #[serde(default)]
+    pub amount: i64,
+    #[serde(default)]
+    pub output: Option<String>,
+    #[serde(default)]
+    pub ingredients: Vec<Ingredient>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct Ingredient {
+    pub id: String,
+    #[serde(default)]
+    pub amount: i64,
+    #[serde(rename = "type", default)]
+    pub kind: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct Item {
+    pub id: String,
+    pub name: String,
+    #[serde(default)]
+    pub rarity: Option<String>,
+    /// Image PNG encodée en base64.
+    #[serde(default)]
+    pub image: Option<String>,
+    #[serde(default)]
+    pub level: Option<i64>,
+    #[serde(rename = "type", default)]
+    pub kind: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct Player {
+    pub id: String,
+    pub username: String,
+    #[serde(default)]
+    pub level: i64,
+    #[serde(default)]
+    pub playtime: i64,
+    #[serde(default)]
+    pub first_connection: Option<String>,
+    #[serde(default)]
+    pub last_connection: Option<String>,
+    #[serde(default)]
+    pub data: serde_json::Value,
+}
+
+// ---------------------------------------------------------------------------
+// Erreurs
+// ---------------------------------------------------------------------------
+
+#[derive(Debug)]
+pub enum ApiError {
+    Http(reqwest::Error),
+    Status(u16),
+    /// Réponse 200 mais corps vide (fréquent sur l'API Minebox quand il n'y a
+    /// pas de données : item introuvable, marché vide, joueur inconnu…).
+    Empty,
+    Parse(serde_json::Error),
+}
+
+impl std::fmt::Display for ApiError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ApiError::Http(e) => write!(f, "erreur réseau : {e}"),
+            ApiError::Status(code) => write!(f, "l'API a répondu HTTP {code}"),
+            ApiError::Empty => write!(f, "aucune donnée renvoyée"),
+            ApiError::Parse(e) => write!(f, "réponse illisible : {e}"),
+        }
+    }
+}
+
+impl std::error::Error for ApiError {}
+
+impl From<reqwest::Error> for ApiError {
+    fn from(e: reqwest::Error) -> Self {
+        ApiError::Http(e)
+    }
+}
