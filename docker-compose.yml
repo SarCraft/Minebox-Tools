@@ -1,0 +1,8 @@
+services:
+  minebox-bot:
+    build: .
+    image: minebox-bot:latest
+    container_name: minebox-bot
+    restart: unless-stopped
+    env_file:
+      - .env
