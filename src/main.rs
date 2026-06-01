@@ -4,9 +4,11 @@ mod util;
 
 use poise::serenity_prelude as serenity;
 
-/// Données partagées entre toutes les commandes (ici, le client de l'API Minebox).
+/// Données partagées entre toutes les commandes.
 pub struct Data {
     pub api: api::MineboxClient,
+    /// Métiers indexés par identifiant minuscule (nom localisé + courbe d'XP).
+    pub skills: std::collections::HashMap<String, api::Skill>,
 }
 
 pub type Error = Box<dyn std::error::Error + Send + Sync>;
@@ -32,9 +34,22 @@ async fn main() {
             Box::pin(async move {
                 poise::builtins::register_globally(ctx, &framework.options().commands).await?;
                 tracing::info!("Connecté en tant que {}", ready.user.name);
-                Ok(Data {
-                    api: api::MineboxClient::new(),
-                })
+
+                let api = api::MineboxClient::new();
+                // Pré-charge les courbes de niveaux des métiers (pour /player).
+                let skills = match api.skills("fr").await {
+                    Ok(resp) => resp
+                        .skills
+                        .into_iter()
+                        .map(|s| (s.id.to_ascii_lowercase(), s))
+                        .collect(),
+                    Err(e) => {
+                        tracing::warn!("Impossible de charger les métiers : {e}");
+                        std::collections::HashMap::new()
+                    }
+                };
+
+                Ok(Data { api, skills })
             })
         })
         .build();

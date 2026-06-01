@@ -106,6 +106,24 @@ pub fn fmt_value(v: &serde_json::Value) -> String {
     }
 }
 
+/// Niveau atteint pour une XP donnée selon la courbe `experience_per_level`.
+///
+/// `curve[0]` correspond au niveau 1 (0 XP) ; chaque entrée suivante est le
+/// coût pour atteindre le niveau correspondant. On cumule jusqu'à dépasser `xp`.
+pub fn skill_level(xp: i64, curve: &[i64]) -> i64 {
+    let mut level = 1;
+    let mut cumulative = 0;
+    for (i, cost) in curve.iter().enumerate().skip(1) {
+        cumulative += cost;
+        if xp >= cumulative {
+            level = i as i64 + 1;
+        } else {
+            break;
+        }
+    }
+    level
+}
+
 /// Convertit une date ISO-8601 en timestamp Discord relatif (`<t:…:R>`).
 pub fn discord_relative(iso: &str) -> Option<String> {
     let dt = chrono::DateTime::parse_from_rfc3339(iso).ok()?;

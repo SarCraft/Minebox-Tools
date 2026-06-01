@@ -130,6 +130,11 @@ impl MineboxClient {
     pub async fn player(&self, identifier: &str) -> Result<Player, ApiError> {
         self.get(&format!("/data/{identifier}"), &[]).await
     }
+
+    /// Liste des métiers avec leur courbe d'XP par niveau.
+    pub async fn skills(&self, locale: &str) -> Result<SkillsResp, ApiError> {
+        self.get("/skills", &[("locale", locale.to_string())]).await
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -239,6 +244,20 @@ pub struct Item {
     pub level: Option<i64>,
     #[serde(rename = "type", default)]
     pub kind: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct SkillsResp {
+    pub skills: Vec<Skill>,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct Skill {
+    pub id: String,
+    pub name: String,
+    /// Coût d'XP cumulé par niveau (`[0]` = niveau 1, cumul ensuite).
+    #[serde(default)]
+    pub experience_per_level: Vec<i64>,
 }
 
 #[derive(Debug, Deserialize)]

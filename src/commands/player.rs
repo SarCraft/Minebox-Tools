@@ -44,8 +44,9 @@ pub async fn player(
         embed = embed.field("Inscrit", first, true);
     }
 
-    // Métiers (SKILLS.data) triés par XP décroissante.
+    // Métiers (SKILLS.data) triés par XP décroissante, avec niveau calculé.
     if let Some(skills) = p.data.pointer("/SKILLS/data").and_then(|v| v.as_object()) {
+        let curves = &ctx.data().skills;
         let mut jobs: Vec<(&String, i64)> = skills
             .iter()
             .map(|(k, v)| (k, v.as_i64().unwrap_or(0)))
@@ -53,8 +54,18 @@ pub async fn player(
         jobs.sort_by(|a, b| b.1.cmp(&a.1));
         let lines: Vec<String> = jobs
             .iter()
-            .take(8)
-            .map(|(job, xp)| format!("**{}** — {} XP", util::prettify_id(job), util::thousands(*xp)))
+            .take(10)
+            .map(|(job, xp)| {
+                let skill = curves.get(&job.to_ascii_lowercase());
+                let name = skill.map_or_else(|| util::prettify_id(job), |s| s.name.clone());
+                match skill {
+                    Some(s) if !s.experience_per_level.is_empty() => {
+                        let lvl = util::skill_level(*xp, &s.experience_per_level);
+                        format!("**{name}** — Niv. {lvl} · {} XP", util::thousands(*xp))
+                    }
+                    _ => format!("**{name}** — {} XP", util::thousands(*xp)),
+                }
+            })
             .collect();
         if !lines.is_empty() {
             embed = embed.field("Métiers", lines.join("\n"), false);
@@ -83,6 +94,7 @@ pub async fn player(
         let mount = companions
             .get("active_mount")
             .and_then(|v| v.as_str())
+            .filter(|s| !s.is_empty())
             .map(util::prettify_id)
             .unwrap_or_else(|| "aucune".to_string());
         let mounts = companions.get("mounts").and_then(|v| v.as_object()).map_or(0, |m| m.len());
