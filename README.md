@@ -41,7 +41,13 @@ Toutes les données proviennent de l'[API publique Minebox](https://api.minebox.
 | `/market prices <item_id>`   | Statistiques de prix d'un item (achat / vente / direct).                    |
 | `/market bazaar <item_id>`   | Offres du bazar pour un item.                                               |
 | `/market auction`            | Annonces de l'hôtel des ventes.                                            |
-| `/player <pseudo>`           | Profil d'un joueur : niveau, temps de jeu, métiers, stats, compagnons.      |
+| `/player <pseudo>`           | Profil d'un joueur : niveau, temps de jeu, métiers (niveau + % de progression), stats, compagnons. |
+| `/guild <nom>`               | Infos d'une guilde : niveau, XP, membres et nombre de connectés.            |
+
+En plus des commandes, le bot peut afficher dans son **statut** (« petite bulle »)
+le nombre de membres connectés d'une guilde (variable `GUILD_PRESENCE`), et
+maintenir un **tableau de bord live** de stats joueurs dans un salon
+(`STATS_CHANNEL_ID`), tous deux rafraîchis chaque minute.
 
 > Note : certaines routes du marché peuvent renvoyer un corps vide côté API
 > (marché inactif) ; le bot l'indique alors clairement.

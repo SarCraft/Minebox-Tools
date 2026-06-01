@@ -135,6 +135,11 @@ impl MineboxClient {
     pub async fn skills(&self, locale: &str) -> Result<SkillsResp, ApiError> {
         self.get("/skills", &[("locale", locale.to_string())]).await
     }
+
+    /// Informations d'une guilde (nom ou UUID).
+    pub async fn guild(&self, identifier: &str) -> Result<Guild, ApiError> {
+        self.get(&format!("/guild/{identifier}"), &[]).await
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -244,6 +249,34 @@ pub struct Item {
     pub level: Option<i64>,
     #[serde(rename = "type", default)]
     pub kind: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct Guild {
+    pub id: String,
+    pub name: String,
+    #[serde(default)]
+    pub level: i64,
+    #[serde(default)]
+    pub xp: i64,
+    #[serde(default)]
+    pub members: Vec<GuildMember>,
+}
+
+impl Guild {
+    /// Nombre de membres actuellement connectés.
+    pub fn online_count(&self) -> usize {
+        self.members.iter().filter(|m| m.online).count()
+    }
+}
+
+#[derive(Debug, Deserialize)]
+pub struct GuildMember {
+    pub username: String,
+    #[serde(default)]
+    pub online: bool,
+    #[serde(default)]
+    pub is_owner: bool,
 }
 
 #[derive(Debug, Deserialize)]

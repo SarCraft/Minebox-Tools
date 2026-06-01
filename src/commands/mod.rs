@@ -1,6 +1,7 @@
 //! Commandes slash du bot.
 
 mod bestiary;
+mod guild;
 mod market;
 mod player;
 mod recipes;
@@ -15,6 +16,7 @@ pub fn all() -> Vec<poise::Command<Data, Error>> {
         recipes::recipes(),
         market::market(),
         player::player(),
+        guild::guild(),
     ]
 }
 

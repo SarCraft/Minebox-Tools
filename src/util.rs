@@ -107,21 +107,57 @@ pub fn fmt_value(v: &serde_json::Value) -> String {
 }
 
 /// Niveau atteint pour une XP donnée selon la courbe `experience_per_level`.
-///
-/// `curve[0]` correspond au niveau 1 (0 XP) ; chaque entrée suivante est le
-/// coût pour atteindre le niveau correspondant. On cumule jusqu'à dépasser `xp`.
 pub fn skill_level(xp: i64, curve: &[i64]) -> i64 {
+    skill_progress(xp, curve).level
+}
+
+/// Progression détaillée d'un métier pour une XP donnée.
+///
+/// `curve[0]` correspond au niveau 1 (0 XP) ; chaque entrée suivante est le coût
+/// (incrémental) pour atteindre le niveau correspondant. On cumule jusqu'à
+/// dépasser `xp` pour en déduire le niveau et la progression vers le suivant.
+pub struct SkillProgress {
+    pub level: i64,
+    /// Pourcentage parcouru dans le niveau courant (0–100).
+    pub percent: f64,
+    /// XP déjà acquise dans le niveau courant.
+    pub into_level: i64,
+    /// XP totale nécessaire pour passer au niveau suivant.
+    pub level_span: i64,
+}
+
+pub fn skill_progress(xp: i64, curve: &[i64]) -> SkillProgress {
     let mut level = 1;
-    let mut cumulative = 0;
+    let mut cumulative = 0i64;
+    let mut level_start = 0i64;
     for (i, cost) in curve.iter().enumerate().skip(1) {
         cumulative += cost;
         if xp >= cumulative {
             level = i as i64 + 1;
+            level_start = cumulative;
         } else {
-            break;
+            let span = cumulative - level_start;
+            let into = xp - level_start;
+            let percent = if span > 0 {
+                (into as f64 / span as f64) * 100.0
+            } else {
+                0.0
+            };
+            return SkillProgress {
+                level,
+                percent,
+                into_level: into,
+                level_span: span,
+            };
         }
     }
-    level
+    // Niveau maximum atteint.
+    SkillProgress {
+        level,
+        percent: 100.0,
+        into_level: 0,
+        level_span: 0,
+    }
 }
 
 /// Convertit une date ISO-8601 en timestamp Discord relatif (`<t:…:R>`).

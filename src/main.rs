@@ -69,6 +69,14 @@ async fn main() {
                     stats::spawn(ctx.clone(), api.clone(), skills.clone(), channel_id, players);
                 }
 
+                // Statut du bot : nombre de connectés d'une guilde (défaut « S7ven »).
+                let guild_name = std::env::var("GUILD_PRESENCE")
+                    .ok()
+                    .map(|s| s.trim().to_string())
+                    .filter(|s| !s.is_empty())
+                    .unwrap_or_else(|| "S7ven".to_string());
+                stats::spawn_presence(ctx.clone(), api.clone(), guild_name);
+
                 Ok(Data { api, skills })
             })
         })

@@ -60,8 +60,18 @@ pub async fn player(
                 let name = skill.map_or_else(|| util::prettify_id(job), |s| s.name.clone());
                 match skill {
                     Some(s) if !s.experience_per_level.is_empty() => {
-                        let lvl = util::skill_level(*xp, &s.experience_per_level);
-                        format!("**{name}** — Niv. {lvl} · {} XP", util::thousands(*xp))
+                        let p = util::skill_progress(*xp, &s.experience_per_level);
+                        if p.level_span > 0 {
+                            format!(
+                                "**{name}** — Niv. {} · {}/{} XP ({:.1} %)",
+                                p.level,
+                                util::thousands(p.into_level),
+                                util::thousands(p.level_span),
+                                p.percent
+                            )
+                        } else {
+                            format!("**{name}** — Niv. {} (max) · {} XP", p.level, util::thousands(*xp))
+                        }
                     }
                     _ => format!("**{name}** — {} XP", util::thousands(*xp)),
                 }

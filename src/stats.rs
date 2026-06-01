@@ -24,6 +24,30 @@ pub fn default_players() -> Vec<String> {
         .collect()
 }
 
+/// Met à jour le statut du bot (« petite bulle ») avec le nombre de membres
+/// connectés d'une guilde, rafraîchi chaque minute.
+pub fn spawn_presence(ctx: serenity::Context, api: MineboxClient, guild_name: String) {
+    tokio::spawn(async move {
+        tracing::info!("Présence : suivi des connectés de la guilde « {guild_name} »");
+        loop {
+            let activity = match api.guild(&guild_name).await {
+                Ok(g) => {
+                    let online = g.online_count();
+                    serenity::ActivityData::custom(format!(
+                        "🟢 {online} connecté(s) dans {}",
+                        g.name
+                    ))
+                }
+                Err(_) => serenity::ActivityData::custom(format!(
+                    "Guilde {guild_name} indisponible"
+                )),
+            };
+            ctx.set_presence(Some(activity), serenity::OnlineStatus::Online);
+            tokio::time::sleep(INTERVAL).await;
+        }
+    });
+}
+
 /// Lance la boucle de mise à jour en tâche de fond.
 pub fn spawn(
     ctx: serenity::Context,
