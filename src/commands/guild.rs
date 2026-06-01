@@ -5,6 +5,9 @@ use poise::serenity_prelude as serenity;
 use crate::util;
 use crate::{Context, Error};
 
+/// Préfixe du titre de l'embed (sert aussi à repérer le message du dashboard).
+pub const TITLE_PREFIX: &str = "🛡️";
+
 /// Affiche les infos d'une guilde : niveau, XP, membres et connectés.
 #[poise::command(slash_command)]
 pub async fn guild(
@@ -22,15 +25,22 @@ pub async fn guild(
         }
     };
 
+    ctx.send(poise::CreateReply::default().embed(build_embed(&g)))
+        .await?;
+    Ok(())
+}
+
+/// Construit l'embed d'une guilde (réutilisé par la commande et le dashboard).
+pub fn build_embed(g: &crate::api::Guild) -> serenity::CreateEmbed {
     let online = g.online_count();
     let total = g.members.len();
 
-    // Membres triés : connectés d'abord, puis le chef en tête.
+    // Membres triés : chef en tête, puis les connectés.
     let mut members = g.members.iter().collect::<Vec<_>>();
-    members.sort_by_key(|m| (!m.is_owner, !m.online));
+    members.sort_by_key(|m| (!m.is_owner, !m.online, m.username.to_lowercase()));
     let list: String = members
         .iter()
-        .take(30)
+        .take(40)
         .map(|m| {
             let dot = if m.online { "🟢" } else { "⚫" };
             let crown = if m.is_owner { " 👑" } else { "" };
@@ -40,7 +50,7 @@ pub async fn guild(
         .join("\n");
 
     let mut embed = serenity::CreateEmbed::new()
-        .title(format!("🛡️ {}", g.name))
+        .title(format!("{TITLE_PREFIX} {}", g.name))
         .colour(util::rarity_color(None))
         .field("Niveau", g.level.to_string(), true)
         .field("XP", util::thousands(g.xp), true)
@@ -53,8 +63,7 @@ pub async fn guild(
     if !list.is_empty() {
         embed = embed.field("Liste des membres", list, false);
     }
-    embed = embed.footer(serenity::CreateEmbedFooter::new(format!("UUID : {}", g.id)));
-
-    ctx.send(poise::CreateReply::default().embed(embed)).await?;
-    Ok(())
+    embed
+        .timestamp(serenity::Timestamp::now())
+        .footer(serenity::CreateEmbedFooter::new(format!("UUID : {}", g.id)))
 }

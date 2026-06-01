@@ -1,7 +1,7 @@
 //! Commandes slash du bot.
 
 mod bestiary;
-mod guild;
+pub mod guild;
 mod market;
 mod player;
 mod recipes;

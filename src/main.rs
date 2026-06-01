@@ -69,13 +69,21 @@ async fn main() {
                     stats::spawn(ctx.clone(), api.clone(), skills.clone(), channel_id, players);
                 }
 
-                // Statut du bot : nombre de connectés d'une guilde (défaut « S7ven »).
+                // Guilde suivie (statut + dashboard). Défaut « S7ven ».
                 let guild_name = std::env::var("GUILD_PRESENCE")
                     .ok()
                     .map(|s| s.trim().to_string())
                     .filter(|s| !s.is_empty())
                     .unwrap_or_else(|| "S7ven".to_string());
-                stats::spawn_presence(ctx.clone(), api.clone(), guild_name);
+                stats::spawn_presence(ctx.clone(), api.clone(), guild_name.clone());
+
+                // Dashboard de guilde dans un salon (si GUILD_CHANNEL_ID est défini).
+                if let Some(guild_channel) = std::env::var("GUILD_CHANNEL_ID")
+                    .ok()
+                    .and_then(|s| s.trim().parse::<u64>().ok())
+                {
+                    stats::spawn_guild(ctx.clone(), api.clone(), guild_name, guild_channel);
+                }
 
                 Ok(Data { api, skills })
             })

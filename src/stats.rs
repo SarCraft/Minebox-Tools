@@ -48,6 +48,47 @@ pub fn spawn_presence(ctx: serenity::Context, api: MineboxClient, guild_name: St
     });
 }
 
+/// Maintient dans un salon un message à jour avec les données d'une guilde.
+pub fn spawn_guild(
+    ctx: serenity::Context,
+    api: MineboxClient,
+    guild_name: String,
+    channel_id: u64,
+) {
+    tokio::spawn(async move {
+        let channel = serenity::ChannelId::new(channel_id);
+        let bot_id = ctx.cache.current_user().id;
+        let mut message_id =
+            find_existing(&ctx, channel, bot_id, |t| t.starts_with(crate::commands::guild::TITLE_PREFIX))
+                .await;
+        tracing::info!("Dashboard guilde « {guild_name} » actif dans le salon {channel_id}");
+
+        loop {
+            let embed = match api.guild(&guild_name).await {
+                Ok(g) => crate::commands::guild::build_embed(&g),
+                Err(_) => serenity::CreateEmbed::new()
+                    .title(format!("{} {guild_name}", crate::commands::guild::TITLE_PREFIX))
+                    .colour(util::rarity_color(None))
+                    .description("Guilde introuvable côté API (vérifie le nom exact ou l'UUID).")
+                    .timestamp(serenity::Timestamp::now()),
+            };
+
+            message_id = match message_id {
+                Some(id) => {
+                    let edit = serenity::EditMessage::new().embed(embed.clone());
+                    match channel.edit_message(&ctx.http, id, edit).await {
+                        Ok(_) => Some(id),
+                        Err(_) => send_new(&ctx, channel, embed).await,
+                    }
+                }
+                None => send_new(&ctx, channel, embed).await,
+            };
+
+            tokio::time::sleep(INTERVAL).await;
+        }
+    });
+}
+
 /// Lance la boucle de mise à jour en tâche de fond.
 pub fn spawn(
     ctx: serenity::Context,
@@ -62,7 +103,7 @@ pub fn spawn(
 
         // Réutilise un message existant du bot s'il y en a un (évite les doublons
         // à chaque redémarrage).
-        let mut message_id = find_existing(&ctx, channel, bot_id).await;
+        let mut message_id = find_existing(&ctx, channel, bot_id, |t| t == TITLE).await;
         tracing::info!(
             "Tableau de bord stats actif dans le salon {channel_id} ({} joueurs)",
             players.len()
@@ -104,11 +145,12 @@ async fn send_new(
     }
 }
 
-/// Cherche un message déjà posté par le bot (reconnu à son titre d'embed).
+/// Cherche un message déjà posté par le bot, reconnu via le titre de son embed.
 async fn find_existing(
     ctx: &serenity::Context,
     channel: serenity::ChannelId,
     bot_id: serenity::UserId,
+    title_matches: impl Fn(&str) -> bool,
 ) -> Option<serenity::MessageId> {
     let builder = serenity::GetMessages::new().limit(50);
     let messages = channel.messages(&ctx.http, builder).await.ok()?;
@@ -119,7 +161,7 @@ async fn find_existing(
                 && m.embeds
                     .first()
                     .and_then(|e| e.title.as_deref())
-                    .is_some_and(|t| t == TITLE)
+                    .is_some_and(&title_matches)
         })
         .map(|m| m.id)
 }
