@@ -273,6 +273,8 @@ pub struct Player {
     #[serde(default)]
     pub last_connection: Option<String>,
     #[serde(default)]
+    pub online: bool,
+    #[serde(default)]
     pub data: serde_json::Value,
 }
 

@@ -1,5 +1,6 @@
 mod api;
 mod commands;
+mod stats;
 mod util;
 
 use poise::serenity_prelude as serenity;
@@ -48,6 +49,25 @@ async fn main() {
                         std::collections::HashMap::new()
                     }
                 };
+
+                // Tableau de bord « live » optionnel (si STATS_CHANNEL_ID est défini).
+                if let Some(channel_id) = std::env::var("STATS_CHANNEL_ID")
+                    .ok()
+                    .and_then(|s| s.trim().parse::<u64>().ok())
+                {
+                    let players = std::env::var("STATS_PLAYERS")
+                        .ok()
+                        .map(|s| {
+                            s.split(',')
+                                .map(|p| p.trim().to_string())
+                                .filter(|p| !p.is_empty())
+                                .collect::<Vec<_>>()
+                        })
+                        .filter(|v| !v.is_empty())
+                        .unwrap_or_else(stats::default_players);
+
+                    stats::spawn(ctx.clone(), api.clone(), skills.clone(), channel_id, players);
+                }
 
                 Ok(Data { api, skills })
             })
