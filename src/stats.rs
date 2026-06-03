@@ -90,12 +90,16 @@ pub fn spawn_guild(
 }
 
 /// Lance la boucle de mise à jour en tâche de fond.
+///
+/// Les joueurs affichés sont les membres de la guilde `guild_name`, rafraîchis à
+/// chaque tour. `fallback` sert de repli si l'API guilde est indisponible.
 pub fn spawn(
     ctx: serenity::Context,
     api: MineboxClient,
     skills: HashMap<String, Skill>,
     channel_id: u64,
-    players: Vec<String>,
+    guild_name: String,
+    fallback: Vec<String>,
 ) {
     tokio::spawn(async move {
         let channel = serenity::ChannelId::new(channel_id);
@@ -105,11 +109,16 @@ pub fn spawn(
         // à chaque redémarrage).
         let mut message_id = find_existing(&ctx, channel, bot_id, |t| t == TITLE).await;
         tracing::info!(
-            "Tableau de bord stats actif dans le salon {channel_id} ({} joueurs)",
-            players.len()
+            "Tableau de bord stats actif dans le salon {channel_id} (membres de « {guild_name} »)"
         );
 
         loop {
+            // Membres de la guilde à chaque tour ; repli sur la liste statique si
+            // l'API ne répond pas.
+            let players = match api.guild(&guild_name).await {
+                Ok(g) => g.members.into_iter().map(|m| m.username).collect(),
+                Err(_) => fallback.clone(),
+            };
             let embed = build_embed(&api, &skills, &players).await;
 
             message_id = match message_id {

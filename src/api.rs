@@ -1,8 +1,21 @@
 //! Client de l'API publique Minebox (https://api.minebox.co).
 
-use serde::Deserialize;
+use serde::{Deserialize, Deserializer};
 
 const BASE_URL: &str = "https://api.minebox.co";
+
+/// Désérialise une séquence en la traitant comme vide si le champ vaut `null`.
+///
+/// L'API Minebox renvoie parfois `null` (et non `[]` ou un champ absent) pour
+/// une liste vide ; `#[serde(default)]` ne suffit pas car un `null` présent est
+/// quand même transmis au désérialiseur de `Vec`.
+fn null_as_empty_vec<'de, D, T>(deserializer: D) -> Result<Vec<T>, D::Error>
+where
+    D: Deserializer<'de>,
+    T: Deserialize<'de>,
+{
+    Ok(Option::<Vec<T>>::deserialize(deserializer)?.unwrap_or_default())
+}
 
 /// Client HTTP réutilisable vers l'API Minebox.
 #[derive(Clone)]
@@ -140,6 +153,11 @@ impl MineboxClient {
     pub async fn guild(&self, identifier: &str) -> Result<Guild, ApiError> {
         self.get(&format!("/guild/{identifier}"), &[]).await
     }
+
+    /// Liste de tous les sets d'équipement avec leurs bonus.
+    pub async fn sets(&self) -> Result<SetsResp, ApiError> {
+        self.get("/sets", &[]).await
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -148,6 +166,7 @@ impl MineboxClient {
 
 #[derive(Debug, Deserialize)]
 pub struct BestiaryList {
+    #[serde(default, deserialize_with = "null_as_empty_vec")]
     pub creatures: Vec<CreatureSummary>,
 }
 
@@ -173,13 +192,13 @@ pub struct Creature {
     pub level: i64,
     #[serde(default)]
     pub level_max: i64,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "null_as_empty_vec")]
     pub health: Vec<i64>,
     #[serde(default)]
     pub image: Option<String>,
     #[serde(default)]
     pub zones: Option<Vec<String>>,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "null_as_empty_vec")]
     pub drops: Vec<Drop>,
     #[serde(default)]
     pub stats: Option<std::collections::BTreeMap<String, Vec<i64>>>,
@@ -192,7 +211,7 @@ pub struct Drop {
     /// Image PNG encodée en base64 (pas une URL).
     #[serde(default)]
     pub image: Option<String>,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "null_as_empty_vec")]
     pub amount: Vec<i64>,
     #[serde(default)]
     pub chance: f64,
@@ -208,6 +227,7 @@ pub struct ItemBrief {
 
 #[derive(Debug, Deserialize)]
 pub struct RecipesResp {
+    #[serde(default, deserialize_with = "null_as_empty_vec")]
     pub recipes: Vec<Recipe>,
     #[serde(default)]
     pub total: i64,
@@ -223,7 +243,7 @@ pub struct Recipe {
     pub amount: i64,
     #[serde(default)]
     pub output: Option<String>,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "null_as_empty_vec")]
     pub ingredients: Vec<Ingredient>,
 }
 
@@ -259,7 +279,7 @@ pub struct Guild {
     pub level: i64,
     #[serde(default)]
     pub xp: i64,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "null_as_empty_vec")]
     pub members: Vec<GuildMember>,
 }
 
@@ -280,7 +300,40 @@ pub struct GuildMember {
 }
 
 #[derive(Debug, Deserialize)]
+pub struct SetsResp {
+    #[serde(default, deserialize_with = "null_as_empty_vec")]
+    pub sets: Vec<EquipmentSet>,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct EquipmentSet {
+    pub id: String,
+    pub name: String,
+    /// Bonus par nombre de pièces portées : `{ "2": { "STRENGTH": 5, … }, … }`.
+    #[serde(default)]
+    pub bonuses: std::collections::BTreeMap<String, std::collections::BTreeMap<String, i64>>,
+}
+
+impl EquipmentSet {
+    /// Palier maximal (le plus grand nombre de pièces) et ses bonus.
+    pub fn max_tier(&self) -> Option<(u32, &std::collections::BTreeMap<String, i64>)> {
+        self.bonuses
+            .iter()
+            .filter_map(|(k, v)| k.parse::<u32>().ok().map(|n| (n, v)))
+            .max_by_key(|(n, _)| *n)
+    }
+
+    /// Somme des bonus au palier maximal : approxime la puissance du set.
+    pub fn power(&self) -> i64 {
+        self.max_tier()
+            .map(|(_, stats)| stats.values().sum())
+            .unwrap_or(0)
+    }
+}
+
+#[derive(Debug, Deserialize)]
 pub struct SkillsResp {
+    #[serde(default, deserialize_with = "null_as_empty_vec")]
     pub skills: Vec<Skill>,
 }
 
@@ -289,7 +342,7 @@ pub struct Skill {
     pub id: String,
     pub name: String,
     /// Coût d'XP cumulé par niveau (`[0]` = niveau 1, cumul ensuite).
-    #[serde(default)]
+    #[serde(default, deserialize_with = "null_as_empty_vec")]
     pub experience_per_level: Vec<i64>,
 }
 

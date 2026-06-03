@@ -5,6 +5,7 @@ pub mod guild;
 mod market;
 mod player;
 mod recipes;
+mod sets;
 
 use crate::{Data, Error};
 
@@ -17,6 +18,7 @@ pub fn all() -> Vec<poise::Command<Data, Error>> {
         market::market(),
         player::player(),
         guild::guild(),
+        sets::roadmap(),
     ]
 }
 

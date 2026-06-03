@@ -50,12 +50,21 @@ async fn main() {
                     }
                 };
 
+                // Guilde suivie (statut + dashboards). Défaut « S7ven ».
+                let guild_name = std::env::var("GUILD_PRESENCE")
+                    .ok()
+                    .map(|s| s.trim().to_string())
+                    .filter(|s| !s.is_empty())
+                    .unwrap_or_else(|| "S7ven".to_string());
+
                 // Tableau de bord « live » optionnel (si STATS_CHANNEL_ID est défini).
+                // Les joueurs suivis sont les membres de la guilde ; `STATS_PLAYERS`
+                // (ou la liste par défaut) sert de repli si l'API guilde échoue.
                 if let Some(channel_id) = std::env::var("STATS_CHANNEL_ID")
                     .ok()
                     .and_then(|s| s.trim().parse::<u64>().ok())
                 {
-                    let players = std::env::var("STATS_PLAYERS")
+                    let fallback = std::env::var("STATS_PLAYERS")
                         .ok()
                         .map(|s| {
                             s.split(',')
@@ -66,15 +75,16 @@ async fn main() {
                         .filter(|v| !v.is_empty())
                         .unwrap_or_else(stats::default_players);
 
-                    stats::spawn(ctx.clone(), api.clone(), skills.clone(), channel_id, players);
+                    stats::spawn(
+                        ctx.clone(),
+                        api.clone(),
+                        skills.clone(),
+                        channel_id,
+                        guild_name.clone(),
+                        fallback,
+                    );
                 }
 
-                // Guilde suivie (statut + dashboard). Défaut « S7ven ».
-                let guild_name = std::env::var("GUILD_PRESENCE")
-                    .ok()
-                    .map(|s| s.trim().to_string())
-                    .filter(|s| !s.is_empty())
-                    .unwrap_or_else(|| "S7ven".to_string());
                 stats::spawn_presence(ctx.clone(), api.clone(), guild_name.clone());
 
                 // Dashboard de guilde dans un salon (si GUILD_CHANNEL_ID est défini).
